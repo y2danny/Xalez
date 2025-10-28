@@ -7,18 +7,31 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { PresaleConfig } from '../types';
 import { simulateRaikuJob, formatTokenAmount, calculateProgress } from '../utils/raiku';
+import { useWallet } from '../hooks/use-wallet';
+import { WalletModal } from './WalletModal';
 
 interface PresaleWidgetProps {
   config: PresaleConfig;
 }
 
 export const PresaleWidget = ({ config }: PresaleWidgetProps) => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState('');
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [txSuccess, setTxSuccess] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState('');
+  
+  const {
+    isConnected,
+    address: walletAddress,
+    formattedAddress,
+    walletName,
+    isConnecting,
+    error,
+    availableWallets,
+    connect,
+    clearError,
+  } = useWallet();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -42,13 +55,18 @@ export const PresaleWidget = ({ config }: PresaleWidgetProps) => {
     return () => clearInterval(interval);
   }, [config.endDate]);
 
-  const handleConnect = () => {
-    setIsConnected(true);
-    setWalletAddress('0x' + Math.random().toString(16).substr(2, 40));
+  const handleConnectClick = () => {
+    clearError();
+    setIsWalletModalOpen(true);
+  };
+
+  const handleWalletConnect = async (adapter: any) => {
+    await connect(adapter);
+    setIsWalletModalOpen(false);
   };
 
   const handleBuyTokens = async () => {
-    if (!amount || parseFloat(amount) <= 0) return;
+    if (!amount || parseFloat(amount) <= 0 || !walletAddress) return;
 
     setIsProcessing(true);
     setTxSuccess(false);
@@ -122,12 +140,13 @@ export const PresaleWidget = ({ config }: PresaleWidgetProps) => {
 
         {!isConnected ? (
           <Button
-            onClick={handleConnect}
+            onClick={handleConnectClick}
+            disabled={isConnecting}
             className="w-full bg-white text-black hover:bg-white/90"
             size="lg"
           >
             <Wallet className="mr-2 h-4 w-4" />
-            Connect Wallet
+            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
           </Button>
         ) : (
           <motion.div
@@ -137,9 +156,10 @@ export const PresaleWidget = ({ config }: PresaleWidgetProps) => {
           >
             <div className="rounded-lg bg-black/20 p-3">
               <p className="mb-1 text-xs text-white/70">Connected Wallet</p>
-              <p className="font-mono text-sm">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="font-mono text-sm">{formattedAddress}</p>
+                <span className="text-xs text-white/50">({walletName})</span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -209,6 +229,16 @@ export const PresaleWidget = ({ config }: PresaleWidgetProps) => {
           </div>
         </div>
       </div>
+      
+      {/* Wallet Connection Modal */}
+      <WalletModal
+        isOpen={isWalletModalOpen}
+        onClose={() => setIsWalletModalOpen(false)}
+        availableWallets={availableWallets}
+        onConnect={handleWalletConnect}
+        isConnecting={isConnecting}
+        error={error}
+      />
     </Card>
   );
 };
